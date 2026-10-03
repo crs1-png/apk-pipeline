@@ -98,6 +98,28 @@ jobs:
           flutter-version: ${{ inputs.flutter_version }}
           cache: true
 
+      # Removes machine-specific settings from the cloned copy (e.g. a Windows
+      # JDK path in gradle.properties) and points Gradle/Flutter to the runner's JDK.
+      # The source repository itself is not changed.
+      - name: Prepare Android build environment
+        run: |
+          set -euo pipefail
+          cd "src/$SRC_PROJECT_PATH"
+
+          # Remove hard-coded JDK paths from all project gradle.properties files
+          find . -name gradle.properties -not -path "*/build/*" -print0 | while IFS= read -r -d '' f; do
+            sed -i '/^[[:space:]]*org\.gradle\.java\.home[[:space:]]*=/d' "$f"
+          done
+
+          # local.properties contains local SDK paths. Flutter recreates it.
+          rm -f android/local.properties
+
+          # User-level Gradle settings override project settings
+          mkdir -p ~/.gradle
+          echo "org.gradle.java.home=$JAVA_HOME" >> ~/.gradle/gradle.properties
+
+          flutter config --jdk-dir="$JAVA_HOME" > /dev/null
+
       # Build output goes to a file instead of the public log.
       # On failure the log is uploaded to Google Drive.
       - name: Build APK (output hidden from public log)
